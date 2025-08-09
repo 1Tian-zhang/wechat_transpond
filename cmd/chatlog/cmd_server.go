@@ -15,7 +15,7 @@ func init() {
 	serverCmd.Flags().StringVarP(&serverDataDir, "data-dir", "d", "", "data dir")
 	serverCmd.Flags().StringVarP(&serverWorkDir, "work-dir", "w", "", "work dir")
 	serverCmd.Flags().StringVarP(&serverPlatform, "platform", "p", runtime.GOOS, "platform")
-	serverCmd.Flags().IntVarP(&serverVer, "version", "v", 3, "version")
+	serverCmd.Flags().IntVarP(&serverVer, "version", "v", 0, "version")
 }
 
 var (
