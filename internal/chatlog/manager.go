@@ -309,27 +309,26 @@ func (m *Manager) CommandDecrypt(dataDir string, workDir string, key string, pla
 
 func (m *Manager) CommandHTTPServer(addr string, dataDir string, workDir string, platform string, version int) error {
 
-	if addr == "" {
-		addr = "127.0.0.1:5030"
+	if addr != "" {
+		// addr = "127.0.0.1:5030"
+		m.ctx.HTTPAddr = addr
 	}
 
-	if workDir == "" {
-		return fmt.Errorf("workDir is required")
+	if workDir != "" {
+		m.ctx.WorkDir = workDir
 	}
 
-	if platform == "" {
-		return fmt.Errorf("platform is required")
+	if dataDir != "" {
+		m.ctx.DataDir = dataDir
 	}
 
-	if version == 0 {
-		return fmt.Errorf("version is required")
+	if platform != "" {
+		m.ctx.Platform = platform
 	}
 
-	m.ctx.HTTPAddr = addr
-	m.ctx.DataDir = dataDir
-	m.ctx.WorkDir = workDir
-	m.ctx.Platform = platform
-	m.ctx.Version = version
+	if version != 0 {
+		m.ctx.Version = version
+	}
 
 	// 如果是 4.0 版本，更新下 xorkey
 	if m.ctx.Version == 4 && m.ctx.DataDir != "" {
