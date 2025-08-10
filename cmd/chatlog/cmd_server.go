@@ -11,7 +11,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
-	serverCmd.Flags().StringVarP(&serverAddr, "addr", "a", "127.0.0.1:5030", "server address")
+	serverCmd.Flags().StringVarP(&serverAddr, "addr", "a", "", "server address")
 	serverCmd.Flags().StringVarP(&serverDataDir, "data-dir", "d", "", "data dir")
 	serverCmd.Flags().StringVarP(&serverWorkDir, "work-dir", "w", "", "work dir")
 	serverCmd.Flags().StringVarP(&serverPlatform, "platform", "p", runtime.GOOS, "platform")
