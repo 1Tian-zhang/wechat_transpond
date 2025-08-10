@@ -1,6 +1,7 @@
 package chatlog
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -23,13 +24,15 @@ func initLog(cmd *cobra.Command, args []string) {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stdout, TimeFormat: time.RFC3339})
 }
 
 func initTuiLog(cmd *cobra.Command, args []string) {
 	logOutput := io.Discard
 
 	debug, _ := cmd.Flags().GetBool("debug")
+	log.Debug().Msgf("debug: %v", debug)
+	fmt.Println("debug: ", debug)
 	if debug {
 		logpath := util.DefaultWorkDir("")
 		util.PrepareDir(logpath)

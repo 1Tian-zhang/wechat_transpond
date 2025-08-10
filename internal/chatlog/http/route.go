@@ -1,13 +1,19 @@
 package http
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"embed"
 	"fmt"
+	"io"
 	"io/fs"
+	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/pkg/util"
@@ -15,6 +21,7 @@ import (
 	"github.com/sjzar/chatlog/pkg/util/silk"
 
 	"github.com/gin-gonic/gin"
+	"github.com/rs/zerolog/log"
 )
 
 // EFS holds embedded file system data for static assets.
@@ -54,6 +61,11 @@ func (s *Service) initRouter() {
 		api.GET("/contact", s.GetContacts)
 		api.GET("/chatroom", s.GetChatRooms)
 		api.GET("/session", s.GetSessions)
+
+		// Work directory sync endpoints
+		api.GET("/sync/send", s.SendWorkDir)
+		api.POST("/sync/receive", s.ReceiveWorkDir)
+		api.GET("/sync/refresh", s.RefreshDatabase)
 	}
 
 	router.NoRoute(s.NoRoute)
@@ -364,4 +376,644 @@ func (s *Service) HandleVoice(c *gin.Context, data []byte) {
 		return
 	}
 	c.Data(http.StatusOK, "audio/mp3", out)
+}
+
+// SendWorkDir 发送工作目录到远程服务器
+func (s *Service) SendWorkDir(c *gin.Context) {
+	// 检查是否启用了同步功能
+	if !s.ctx.SyncEnabled {
+		errors.Err(c, errors.BadRequest("sync is not enabled"))
+		return
+	}
+
+	if s.ctx.SyncRemoteAddr == "" {
+		errors.Err(c, errors.BadRequest("remote address not configured"))
+		return
+	}
+
+	if s.ctx.WorkDir == "" {
+		errors.Err(c, errors.BadRequest("work directory not configured"))
+		return
+	}
+
+	// 检查工作目录是否存在
+	if _, err := os.Stat(s.ctx.WorkDir); os.IsNotExist(err) {
+		errors.Err(c, errors.BadRequest("work directory does not exist"))
+		return
+	}
+
+	log.Info().Msgf("Starting to send work directory: %s", s.ctx.WorkDir)
+
+	// 创建压缩包
+	archiveData, filename, err := s.createWorkDirArchive()
+	if err != nil {
+		log.Err(err).Msg("Failed to create archive")
+		errors.Err(c, errors.InternalServerError("failed to create archive"))
+		return
+	}
+
+	log.Info().Msgf("Created archive: %s (size: %s)", filename, formatSize(int64(len(archiveData))))
+
+	// 发送到远程服务器
+	err = s.sendArchiveToRemote(archiveData, filename)
+	if err != nil {
+		log.Err(err).Msg("Failed to send archive to remote")
+		errors.Err(c, errors.InternalServerError("failed to send archive"))
+		return
+	}
+
+	log.Info().Msg("Work directory sent successfully")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":     "Work directory sent successfully",
+		"archive":     filename,
+		"size":        len(archiveData),
+		"remote_addr": s.ctx.SyncRemoteAddr,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	})
+}
+
+// ReceiveWorkDir 接收远程工作目录数据
+func (s *Service) ReceiveWorkDir(c *gin.Context) {
+	// 验证token
+	token := c.GetHeader("Authorization")
+	if token != "" {
+		token = strings.TrimPrefix(token, "Bearer ")
+	}
+
+	if s.ctx.SyncToken != "" && token != s.ctx.SyncToken {
+		errors.Err(c, errors.Unauthorized("invalid token"))
+		return
+	}
+
+	// 获取上传的文件
+	file, header, err := c.Request.FormFile("archive")
+	if err != nil {
+		errors.Err(c, errors.BadRequest("archive file is required"))
+		return
+	}
+	defer file.Close()
+
+	// 文件大小限制 (2GB)
+	const maxSize = 2 * 1024 * 1024 * 1024
+	if header.Size > maxSize {
+		errors.Err(c, errors.BadRequest("file too large"))
+		return
+	}
+
+	log.Info().
+		Str("filename", header.Filename).
+		Int64("size", header.Size).
+		Msg("Received work directory archive")
+
+	// 处理上传的压缩包
+	err = s.processWorkDirArchive(file, header.Filename)
+	if err != nil {
+		log.Err(err).Msg("Failed to process work directory archive")
+		errors.Err(c, errors.InternalServerError("failed to process archive"))
+		return
+	}
+
+	log.Info().Msg("Work directory received and extracted successfully")
+
+	// 刷新数据库连接和session缓存
+	err = s.refreshDatabaseAndSession()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to refresh database and session after workdir update")
+		// 不返回错误，因为文件已经成功接收，只是刷新可能有问题
+	} else {
+		log.Info().Msg("Database and session refreshed successfully after workdir update")
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Work directory received successfully",
+		"filename":  header.Filename,
+		"size":      header.Size,
+		"work_dir":  s.ctx.WorkDir,
+		"timestamp": time.Now().Format(time.RFC3339),
+		"refreshed": err == nil,
+	})
+}
+
+// RefreshDatabase 手动刷新数据库连接和session缓存
+func (s *Service) RefreshDatabase(c *gin.Context) {
+	log.Info().Msg("Manual database refresh requested via API")
+
+	// 调用刷新逻辑
+	err := s.refreshDatabaseAndSession()
+	if err != nil {
+		log.Err(err).Msg("Manual database refresh failed")
+		errors.Err(c, errors.InternalServerError("failed to refresh database"))
+		return
+	}
+
+	log.Info().Msg("Manual database refresh completed successfully")
+
+	// 获取一些基本统计信息
+	stats := s.getDatabaseStats()
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":      "Database refreshed successfully",
+		"timestamp":    time.Now().Format(time.RFC3339),
+		"work_dir":     s.ctx.WorkDir,
+		"last_session": s.ctx.LastSession.Format(time.RFC3339),
+		"stats":        stats,
+	})
+}
+
+// getDatabaseStats 获取数据库基本统计信息
+func (s *Service) getDatabaseStats() map[string]interface{} {
+	stats := map[string]interface{}{
+		"database_connected": s.db.GetDB() != nil,
+	}
+
+	// 如果数据库连接可用，获取一些统计信息
+	if s.db.GetDB() != nil {
+		// 获取联系人数量
+		if contactsResp, err := s.db.GetContacts("", 1, 0); err == nil {
+			stats["contacts_available"] = len(contactsResp.Items) > 0
+		}
+
+		// 获取聊天室数量
+		if chatroomsResp, err := s.db.GetChatRooms("", 1, 0); err == nil {
+			stats["chatrooms_available"] = len(chatroomsResp.Items) > 0
+		}
+
+		// 获取会话数量
+		if sessionsResp, err := s.db.GetSessions("", 1, 0); err == nil {
+			stats["sessions_available"] = len(sessionsResp.Items) > 0
+		}
+	}
+
+	return stats
+}
+
+// createWorkDirArchive 创建工作目录的压缩包
+func (s *Service) createWorkDirArchive() ([]byte, string, error) {
+	var buf bytes.Buffer
+	gzWriter := gzip.NewWriter(&buf)
+	defer gzWriter.Close()
+
+	tarWriter := tar.NewWriter(gzWriter)
+	defer tarWriter.Close()
+
+	baseDir := filepath.Base(s.ctx.WorkDir)
+	filename := fmt.Sprintf("workdir_%s_%s.tar.gz", baseDir, time.Now().Format("20060102_150405"))
+
+	err := filepath.Walk(s.ctx.WorkDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			log.Warn().Err(err).Msgf("Skipping file due to error: %s", path)
+			return nil // 继续处理其他文件
+		}
+
+		// 获取相对路径
+		relPath, _ := filepath.Rel(s.ctx.WorkDir, path)
+
+		// 检查是否应该排除
+		if relPath != "." && s.shouldExcludeFromSync(relPath) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// 创建tar header
+		header, err := tar.FileInfoHeader(info, "")
+		if err != nil {
+			return err
+		}
+
+		// 设置相对路径，包含workdir本身的名字
+		if relPath == "." {
+			// 根目录使用workdir的名字
+			header.Name = baseDir
+		} else {
+			// 子文件/目录在workdir名字下
+			header.Name = filepath.ToSlash(filepath.Join(baseDir, relPath))
+		}
+
+		log.Debug().Msgf("Adding to archive: %s", header.Name)
+
+		// 写入header
+		if err := tarWriter.WriteHeader(header); err != nil {
+			return err
+		}
+
+		// 写入文件内容（仅对常规文件）
+		if info.Mode().IsRegular() {
+			file, err := os.Open(path)
+			if err != nil {
+				return err
+			}
+			defer file.Close()
+
+			_, err = io.Copy(tarWriter, file)
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	// 确保writers被关闭
+	tarWriter.Close()
+	gzWriter.Close()
+
+	return buf.Bytes(), filename, nil
+}
+
+// shouldExcludeFromSync 判断是否应该从同步中排除某个文件/目录
+func (s *Service) shouldExcludeFromSync(relPath string) bool {
+	// 默认排除的文件和目录
+	excludePatterns := []string{
+		"*.tmp", "*.temp", "*.log", ".DS_Store", "Thumbs.db",
+		"uploads", "temp", "cache", ".git", ".svn",
+	}
+
+	for _, pattern := range excludePatterns {
+		if matched, _ := filepath.Match(pattern, filepath.Base(relPath)); matched {
+			return true
+		}
+		if matched, _ := filepath.Match(pattern, relPath); matched {
+			return true
+		}
+	}
+
+	return false
+}
+
+// sendArchiveToRemote 发送压缩包到远程服务器
+func (s *Service) sendArchiveToRemote(data []byte, filename string) error {
+	// 创建multipart form
+	var buf bytes.Buffer
+	writer := multipart.NewWriter(&buf)
+
+	// 添加文件字段
+	fileWriter, err := writer.CreateFormFile("archive", filename)
+	if err != nil {
+		return err
+	}
+
+	_, err = fileWriter.Write(data)
+	if err != nil {
+		return err
+	}
+
+	// 添加其他字段
+	if s.ctx.SyncToken != "" {
+		writer.WriteField("token", s.ctx.SyncToken)
+	}
+
+	writer.WriteField("timestamp", time.Now().Format(time.RFC3339))
+	writer.WriteField("source", "workdir")
+
+	err = writer.Close()
+	if err != nil {
+		return err
+	}
+
+	// 创建HTTP请求
+	req, err := http.NewRequest("POST", s.ctx.SyncRemoteAddr, &buf)
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+
+	if s.ctx.SyncToken != "" {
+		req.Header.Set("Authorization", "Bearer "+s.ctx.SyncToken)
+	}
+
+	// 发送请求
+	client := &http.Client{
+		Timeout: 30 * time.Minute, // 允许大文件传输
+	}
+
+	log.Info().Msgf("Sending archive to: %s", s.ctx.SyncRemoteAddr)
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// 检查响应
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("remote server responded with status %d: %s", resp.StatusCode, string(body))
+	}
+
+	log.Info().Msg("Archive sent successfully")
+	return nil
+}
+
+// processWorkDirArchive 处理接收到的工作目录压缩包
+func (s *Service) processWorkDirArchive(file io.Reader, filename string) error {
+	if s.ctx.WorkDir == "" {
+		return fmt.Errorf("work directory not configured")
+	}
+
+	// 创建临时目录用于备份
+	backupDir := filepath.Join(s.ctx.WorkDir, ".backup", time.Now().Format("20060102_150405"))
+	if err := os.MkdirAll(backupDir, 0755); err != nil {
+		return fmt.Errorf("failed to create backup directory: %v", err)
+	}
+
+	// 备份当前工作目录
+	log.Info().Msgf("Backing up current work directory to: %s", backupDir)
+	err := s.backupWorkDir(backupDir)
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to backup work directory")
+	}
+
+	// 解压新的压缩包
+	err = s.extractWorkDirArchive(file, s.ctx.WorkDir)
+	if err != nil {
+		// 如果解压失败，尝试恢复备份
+		log.Err(err).Msg("Failed to extract archive, attempting to restore backup")
+		if restoreErr := s.restoreWorkDir(backupDir); restoreErr != nil {
+			log.Err(restoreErr).Msg("Failed to restore backup")
+		}
+		return fmt.Errorf("failed to extract archive: %v", err)
+	}
+
+	log.Info().Msg("Work directory updated successfully")
+	return nil
+}
+
+// backupWorkDir 备份当前工作目录
+func (s *Service) backupWorkDir(backupDir string) error {
+	return filepath.Walk(s.ctx.WorkDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// 跳过备份目录本身
+		if strings.HasPrefix(path, filepath.Join(s.ctx.WorkDir, ".backup")) {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		relPath, err := filepath.Rel(s.ctx.WorkDir, path)
+		if err != nil {
+			return err
+		}
+
+		targetPath := filepath.Join(backupDir, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.Create(targetPath)
+		if err != nil {
+			return err
+		}
+		defer dstFile.Close()
+
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	})
+}
+
+// restoreWorkDir 从备份恢复工作目录
+func (s *Service) restoreWorkDir(backupDir string) error {
+	// 清空当前工作目录（除了.backup目录）
+	entries, err := os.ReadDir(s.ctx.WorkDir)
+	if err != nil {
+		return err
+	}
+
+	for _, entry := range entries {
+		if entry.Name() == ".backup" {
+			continue
+		}
+		path := filepath.Join(s.ctx.WorkDir, entry.Name())
+		if err := os.RemoveAll(path); err != nil {
+			log.Warn().Err(err).Msgf("Failed to remove: %s", path)
+		}
+	}
+
+	// 恢复备份
+	return filepath.Walk(backupDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		relPath, err := filepath.Rel(backupDir, path)
+		if err != nil {
+			return err
+		}
+
+		targetPath := filepath.Join(s.ctx.WorkDir, relPath)
+
+		if info.IsDir() {
+			return os.MkdirAll(targetPath, info.Mode())
+		}
+
+		if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			return err
+		}
+
+		srcFile, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer srcFile.Close()
+
+		dstFile, err := os.Create(targetPath)
+		if err != nil {
+			return err
+		}
+		defer dstFile.Close()
+
+		_, err = io.Copy(dstFile, srcFile)
+		return err
+	})
+}
+
+// extractWorkDirArchive 解压工作目录压缩包
+func (s *Service) extractWorkDirArchive(file io.Reader, destDir string) error {
+	gzReader, err := gzip.NewReader(file)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %v", err)
+	}
+	defer gzReader.Close()
+
+	tarReader := tar.NewReader(gzReader)
+	extractedCount := 0
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("failed to read tar header: %v", err)
+		}
+
+		// 跳过空路径
+		if header.Name == "" {
+			log.Debug().Msgf("Skipping empty path")
+			continue
+		}
+
+		// 规范化路径
+		cleanName := filepath.Clean(header.Name)
+		if strings.HasPrefix(cleanName, "..") || strings.Contains(cleanName, ".."+string(os.PathSeparator)) {
+			log.Warn().Msgf("Skipping dangerous path: %s", header.Name)
+			continue
+		}
+
+		// 直接使用tar包中的完整路径，保持目录结构
+		target := filepath.Join(destDir, cleanName)
+		target = filepath.Clean(target)
+
+		// 确保目标路径在destDir内
+		destDirClean := filepath.Clean(destDir)
+		if !strings.HasPrefix(target, destDirClean+string(os.PathSeparator)) && target != destDirClean {
+			log.Warn().Msgf("Skipping path outside destination directory: %s -> %s", header.Name, target)
+			continue
+		}
+
+		log.Debug().Msgf("Extracting: %s -> %s", header.Name, target)
+
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, os.FileMode(header.Mode)); err != nil {
+				return fmt.Errorf("failed to create directory %s: %v", target, err)
+			}
+			extractedCount++
+		case tar.TypeReg:
+			// 确保父目录存在
+			if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+				return fmt.Errorf("failed to create parent directory for %s: %v", target, err)
+			}
+
+			// 创建文件
+			outFile, err := os.Create(target)
+			if err != nil {
+				return fmt.Errorf("failed to create file %s: %v", target, err)
+			}
+
+			// 复制文件内容
+			_, err = io.Copy(outFile, tarReader)
+			outFile.Close()
+			if err != nil {
+				return fmt.Errorf("failed to write file %s: %v", target, err)
+			}
+
+			// 设置文件权限
+			if err := os.Chmod(target, os.FileMode(header.Mode)); err != nil {
+				log.Warn().Err(err).Str("file", target).Msg("Failed to set file permissions")
+			}
+			extractedCount++
+		default:
+			log.Debug().Msgf("Skipping unsupported file type %c: %s", header.Typeflag, header.Name)
+		}
+	}
+
+	log.Info().Msgf("Successfully extracted %d items to %s", extractedCount, destDir)
+	return nil
+}
+
+// refreshDatabaseAndSession 刷新数据库连接和session缓存
+func (s *Service) refreshDatabaseAndSession() error {
+	log.Info().Msg("Starting database and session refresh after workdir update")
+
+	// 1. 重启数据库连接以读取新的workdir数据
+	log.Info().Msg("Restarting database connection with updated workdir")
+	if s.db.GetDB() != nil {
+		s.db.Stop()
+		log.Debug().Msg("Stopped existing database connection")
+	}
+
+	err := s.db.Start()
+	if err != nil {
+		log.Err(err).Msg("Failed to restart database connection")
+		return fmt.Errorf("failed to restart database: %v", err)
+	}
+	log.Info().Msg("Database connection restarted successfully")
+
+	// 2. 尝试重新初始化数据库（如果之前初始化失败）
+	if !s.db.IsInitialized() {
+		log.Info().Msg("Attempting to reinitialize database with new workdir")
+		if err := s.db.TryInitialize(); err != nil {
+			log.Warn().Err(err).Msg("Database reinitialization failed, but continuing with session refresh")
+		} else {
+			log.Info().Msg("Database reinitialized successfully")
+		}
+	}
+
+	// 3. 刷新session缓存 (复用Manager.RefreshSession的逻辑)
+	log.Info().Msg("Refreshing session cache")
+	err = s.refreshSessionCache()
+	if err != nil {
+		log.Warn().Err(err).Msg("Failed to refresh session cache")
+		// 不返回错误，数据库连接已成功
+	} else {
+		log.Info().Msg("Session cache refreshed successfully")
+	}
+
+	log.Info().Msg("Database and session refresh completed")
+	return nil
+}
+
+// refreshSessionCache 刷新session缓存 (参考Manager.RefreshSession实现)
+func (s *Service) refreshSessionCache() error {
+	if s.db.GetDB() == nil {
+		return fmt.Errorf("database connection is nil")
+	}
+
+	resp, err := s.db.GetSessions("", 1, 0)
+	if err != nil {
+		log.Err(err).Msg("Failed to query sessions for refresh")
+		return err
+	}
+
+	if len(resp.Items) == 0 {
+		log.Info().Msg("No sessions found in database")
+		s.ctx.LastSession = time.Time{}
+		return nil
+	}
+
+	// 更新最后会话时间到context
+	s.ctx.LastSession = resp.Items[0].NTime
+	log.Info().
+		Time("last_session", s.ctx.LastSession).
+		Str("session_user", resp.Items[0].UserName).
+		Msg("Updated session cache with latest session")
+
+	return nil
+}
+
+// formatSize 格式化文件大小
+func formatSize(bytes int64) string {
+	const unit = 1024
+	if bytes < unit {
+		return fmt.Sprintf("%d B", bytes)
+	}
+	div, exp := int64(unit), 0
+	for n := bytes / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
 }

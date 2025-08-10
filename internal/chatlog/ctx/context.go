@@ -34,6 +34,11 @@ type Context struct {
 	HTTPEnabled bool
 	HTTPAddr    string
 
+	// 远程同步相关状态
+	SyncEnabled    bool
+	SyncRemoteAddr string
+	SyncToken      string
+
 	// 自动解密
 	AutoDecrypt bool
 	LastSession time.Time
@@ -46,6 +51,9 @@ type Context struct {
 
 	// 所有可用的微信实例
 	WeChatInstances []*wechat.Account
+
+	// 关键词过滤器
+	MustContainKeywords []string
 }
 
 func New(conf *conf.Service) *Context {
@@ -83,6 +91,10 @@ func (c *Context) SwitchHistory(account string) {
 		c.WorkDir = history.WorkDir
 		c.HTTPEnabled = history.HTTPEnabled
 		c.HTTPAddr = history.HTTPAddr
+		c.SyncEnabled = history.SyncEnabled
+		c.SyncRemoteAddr = history.SyncRemoteAddr
+		c.SyncToken = history.SyncToken
+		c.MustContainKeywords = history.MustContainKeywords
 	} else {
 		c.Account = ""
 		c.Platform = ""
@@ -93,6 +105,7 @@ func (c *Context) SwitchHistory(account string) {
 		c.WorkDir = ""
 		c.HTTPEnabled = false
 		c.HTTPAddr = ""
+		c.MustContainKeywords = nil
 	}
 }
 
@@ -169,19 +182,43 @@ func (c *Context) SetAutoDecrypt(enabled bool) {
 	c.UpdateConfig()
 }
 
+func (c *Context) SetSyncEnabled(enabled bool) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.SyncEnabled = enabled
+	c.UpdateConfig()
+}
+
+func (c *Context) SetSyncRemoteAddr(addr string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.SyncRemoteAddr = addr
+	c.UpdateConfig()
+}
+
+func (c *Context) SetSyncToken(token string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.SyncToken = token
+	c.UpdateConfig()
+}
+
 // 更新配置
 func (c *Context) UpdateConfig() {
 	pconf := conf.ProcessConfig{
-		Type:        "wechat",
-		Account:     c.Account,
-		Platform:    c.Platform,
-		Version:     c.Version,
-		FullVersion: c.FullVersion,
-		DataDir:     c.DataDir,
-		DataKey:     c.DataKey,
-		WorkDir:     c.WorkDir,
-		HTTPEnabled: c.HTTPEnabled,
-		HTTPAddr:    c.HTTPAddr,
+		Type:           "wechat",
+		Account:        c.Account,
+		Platform:       c.Platform,
+		Version:        c.Version,
+		FullVersion:    c.FullVersion,
+		DataDir:        c.DataDir,
+		DataKey:        c.DataKey,
+		WorkDir:        c.WorkDir,
+		HTTPEnabled:    c.HTTPEnabled,
+		HTTPAddr:       c.HTTPAddr,
+		SyncEnabled:    c.SyncEnabled,
+		SyncRemoteAddr: c.SyncRemoteAddr,
+		SyncToken:      c.SyncToken,
 	}
 	conf := c.conf.GetConfig()
 	conf.UpdateHistory(c.Account, pconf)

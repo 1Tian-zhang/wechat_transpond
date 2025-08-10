@@ -64,3 +64,8 @@ func InitCacheFailed(cause error) *Error {
 func FileGroupNotFound(name string) *Error {
 	return Newf(nil, http.StatusNotFound, "file group not found: %s", name).WithStack()
 }
+
+// 查询关键词被过滤的错误: 关键词不允许被查询,只允许查询包含关键词的记录
+func KeywordFiltered(keyword string) *Error {
+	return Newf(nil, http.StatusBadRequest, "query keyword are not allowed: %s", keyword).WithStack()
+}

@@ -5,7 +5,6 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/rs/zerolog/log"
-
 	"github.com/sjzar/chatlog/internal/errors"
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb/datasource"
