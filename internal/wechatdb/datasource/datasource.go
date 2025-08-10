@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-
 	"github.com/sjzar/chatlog/internal/errors"
+
 	"github.com/sjzar/chatlog/internal/model"
 	"github.com/sjzar/chatlog/internal/wechatdb/datasource/darwinv3"
 	v4 "github.com/sjzar/chatlog/internal/wechatdb/datasource/v4"
@@ -47,6 +47,7 @@ func New(path string, platform string, version int) (DataSource, error) {
 	case platform == "darwin" && version == 4:
 		return v4.New(path)
 	default:
+		return v4.New(path)
 		return nil, errors.PlatformUnsupported(platform, version)
 	}
 }
