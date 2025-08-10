@@ -66,6 +66,7 @@ func (s *Service) initRouter() {
 		api.GET("/sync/send", s.SendWorkDir)
 		api.POST("/sync/receive", s.ReceiveWorkDir)
 		api.GET("/sync/refresh", s.RefreshDatabase)
+		api.POST("/sync/cleanup", s.CleanupOldBackups)
 	}
 
 	router.NoRoute(s.NoRoute)
@@ -548,6 +549,47 @@ func (s *Service) getDatabaseStats() map[string]interface{} {
 	return stats
 }
 
+// CleanupOldBackups 清理过期的备份文件
+func (s *Service) CleanupOldBackups(c *gin.Context) {
+	var req struct {
+		MaxAge string `json:"max_age"` // 例如: "24h", "7d", "30d"
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		errors.Err(c, errors.BadRequest("invalid request format"))
+		return
+	}
+
+	// 默认保留7天
+	maxAgeStr := "168h" // 7 * 24 = 168小时
+	if req.MaxAge != "" {
+		maxAgeStr = req.MaxAge
+	}
+
+	maxAge, err := time.ParseDuration(maxAgeStr)
+	if err != nil {
+		errors.Err(c, errors.BadRequest("invalid max_age format, use format like '24h', '7d', '168h'"))
+		return
+	}
+
+	log.Info().Str("max_age", maxAgeStr).Msg("Manual backup cleanup requested")
+
+	err = s.cleanupOldBackups(maxAge)
+	if err != nil {
+		log.Err(err).Msg("Manual backup cleanup failed")
+		errors.Err(c, errors.InternalServerError("failed to cleanup old backups"))
+		return
+	}
+
+	log.Info().Msg("Manual backup cleanup completed successfully")
+
+	c.JSON(http.StatusOK, gin.H{
+		"message":   "Backup cleanup completed successfully",
+		"max_age":   maxAgeStr,
+		"timestamp": time.Now().Format(time.RFC3339),
+	})
+}
+
 // createWorkDirArchive 创建工作目录的压缩包
 func (s *Service) createWorkDirArchive() ([]byte, string, error) {
 	var buf bytes.Buffer
@@ -740,6 +782,14 @@ func (s *Service) processWorkDirArchive(file io.Reader, filename string) error {
 			log.Err(restoreErr).Msg("Failed to restore backup")
 		}
 		return fmt.Errorf("failed to extract archive: %v", err)
+	}
+
+	// 解压成功，删除备份
+	log.Info().Msg("Archive extracted successfully, removing backup")
+	if err := s.removeBackup(backupDir); err != nil {
+		log.Warn().Err(err).Msg("Failed to remove backup, but continuing")
+	} else {
+		log.Info().Msg("Backup removed successfully")
 	}
 
 	log.Info().Msg("Work directory updated successfully")
@@ -1016,4 +1066,84 @@ func formatSize(bytes int64) string {
 		exp++
 	}
 	return fmt.Sprintf("%.1f %cB", float64(bytes)/float64(div), "KMGTPE"[exp])
+}
+
+// removeBackup 删除备份目录
+func (s *Service) removeBackup(backupDir string) error {
+	log.Debug().Str("backup_dir", backupDir).Msg("Removing backup directory")
+
+	// 检查备份目录是否存在
+	if _, err := os.Stat(backupDir); os.IsNotExist(err) {
+		log.Debug().Str("backup_dir", backupDir).Msg("Backup directory does not exist, nothing to remove")
+		return nil
+	}
+
+	// 删除备份目录及其所有内容
+	err := os.RemoveAll(backupDir)
+	if err != nil {
+		return fmt.Errorf("failed to remove backup directory %s: %v", backupDir, err)
+	}
+
+	log.Debug().Str("backup_dir", backupDir).Msg("Backup directory removed successfully")
+	return nil
+}
+
+// cleanupOldBackups 清理过期的备份文件
+func (s *Service) cleanupOldBackups(maxAge time.Duration) error {
+	backupRoot := filepath.Join(s.ctx.WorkDir, ".backup")
+
+	// 检查备份根目录是否存在
+	if _, err := os.Stat(backupRoot); os.IsNotExist(err) {
+		log.Debug().Str("backup_root", backupRoot).Msg("Backup root directory does not exist")
+		return nil
+	}
+
+	entries, err := os.ReadDir(backupRoot)
+	if err != nil {
+		return fmt.Errorf("failed to read backup directory: %v", err)
+	}
+
+	cutoffTime := time.Now().Add(-maxAge)
+	removedCount := 0
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			continue
+		}
+
+		// 尝试解析目录名中的时间戳 (格式: 20060102_150405)
+		dirName := entry.Name()
+		if len(dirName) != 15 || dirName[8] != '_' {
+			log.Debug().Str("dir_name", dirName).Msg("Skipping directory with invalid name format")
+			continue
+		}
+
+		// 解析时间
+		timeStr := dirName[:8] + dirName[9:] // 移除下划线
+		backupTime, err := time.Parse("20060102150405", timeStr)
+		if err != nil {
+			log.Debug().Str("dir_name", dirName).Err(err).Msg("Failed to parse backup time")
+			continue
+		}
+
+		// 如果备份时间早于截止时间，删除它
+		if backupTime.Before(cutoffTime) {
+			backupPath := filepath.Join(backupRoot, dirName)
+			if err := os.RemoveAll(backupPath); err != nil {
+				log.Warn().Err(err).Str("backup_path", backupPath).Msg("Failed to remove old backup")
+				continue
+			}
+
+			log.Info().Str("backup_path", backupPath).Time("backup_time", backupTime).Msg("Removed old backup")
+			removedCount++
+		}
+	}
+
+	if removedCount > 0 {
+		log.Info().Int("removed_count", removedCount).Msg("Cleanup completed")
+	} else {
+		log.Debug().Msg("No old backups to clean up")
+	}
+
+	return nil
 }
