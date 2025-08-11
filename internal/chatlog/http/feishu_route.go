@@ -67,13 +67,35 @@ func (s *Service) SyncToFeishu(c *gin.Context) {
 		return
 	}
 
-	// 设置默认时间范围
+	// 设置默认时间范围（使用UTC+8时区）
+	beijingLoc := time.FixedZone("Asia/Shanghai", 8*3600) // UTC+8
+
 	if req.StartTime.IsZero() {
-		req.StartTime = time.Now().Add(-24 * time.Hour)
+		// 默认开始时间：24小时前，使用北京时间
+		req.StartTime = time.Now().In(beijingLoc).Add(-24 * time.Hour)
+	} else {
+		// 如果提供了时间但没有时区信息，假设是北京时间
+		if req.StartTime.Location() == time.UTC {
+			req.StartTime = req.StartTime.In(beijingLoc)
+		}
 	}
+
 	if req.EndTime.IsZero() {
-		req.EndTime = time.Now()
+		// 默认结束时间：当前时间，使用北京时间
+		req.EndTime = time.Now().In(beijingLoc)
+	} else {
+		// 如果提供了时间但没有时区信息，假设是北京时间
+		if req.EndTime.Location() == time.UTC {
+			req.EndTime = req.EndTime.In(beijingLoc)
+		}
 	}
+
+	// 打印调试信息
+	fmt.Printf("Debug: Time range - Start: %s (%s), End: %s (%s)\n",
+		req.StartTime.Format("2006-01-02 15:04:05"),
+		req.StartTime.Location().String(),
+		req.EndTime.Format("2006-01-02 15:04:05"),
+		req.EndTime.Location().String())
 
 	// 创建飞书服务
 	feishuService, err := feishu.NewService(feishuConfig)
