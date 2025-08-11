@@ -760,8 +760,9 @@ func (s *Service) processWorkDirArchive(file io.Reader, filename string) error {
 		return fmt.Errorf("work directory not configured")
 	}
 
-	// 创建临时目录用于备份
-	backupDir := filepath.Join(s.ctx.WorkDir, ".backup", time.Now().Format("20060102_150405"))
+	// 创建临时目录用于备份（放在work_dir的上一层，避免嵌套）
+	workDirParent := filepath.Dir(s.ctx.WorkDir)
+	backupDir := filepath.Join(workDirParent, "backup", time.Now().Format("20060102_150405"))
 	if err := os.MkdirAll(backupDir, 0755); err != nil {
 		return fmt.Errorf("failed to create backup directory: %v", err)
 	}
@@ -803,8 +804,9 @@ func (s *Service) backupWorkDir(backupDir string) error {
 			return err
 		}
 
-		// 跳过备份目录本身
-		if strings.HasPrefix(path, filepath.Join(s.ctx.WorkDir, ".backup")) {
+		// 跳过备份目录本身（现在备份目录在work_dir外面，不需要跳过）
+		// 但为了安全，仍然检查路径是否包含backup
+		if strings.Contains(path, "backup") {
 			if info.IsDir() {
 				return filepath.SkipDir
 			}
@@ -845,16 +847,13 @@ func (s *Service) backupWorkDir(backupDir string) error {
 
 // restoreWorkDir 从备份恢复工作目录
 func (s *Service) restoreWorkDir(backupDir string) error {
-	// 清空当前工作目录（除了.backup目录）
+	// 清空当前工作目录（备份目录现在在外面，不需要跳过）
 	entries, err := os.ReadDir(s.ctx.WorkDir)
 	if err != nil {
 		return err
 	}
 
 	for _, entry := range entries {
-		if entry.Name() == ".backup" {
-			continue
-		}
 		path := filepath.Join(s.ctx.WorkDir, entry.Name())
 		if err := os.RemoveAll(path); err != nil {
 			log.Warn().Err(err).Msgf("Failed to remove: %s", path)
@@ -932,7 +931,20 @@ func (s *Service) extractWorkDirArchive(file io.Reader, destDir string) error {
 			continue
 		}
 
-		// 直接使用tar包中的完整路径，保持目录结构
+		// 去掉workdir的根目录前缀，避免嵌套
+		// 例如：wxid_v8j939e3g22s22_8d2b/db_storage/sns -> db_storage/sns
+		// 或者：wxid_v8j939e3g22s22_8d2b -> . (根目录)
+		pathParts := strings.Split(cleanName, string(os.PathSeparator))
+		if len(pathParts) > 1 {
+			// 去掉第一级目录（workdir名称）
+			cleanName = filepath.Join(pathParts[1:]...)
+		} else if len(pathParts) == 1 && pathParts[0] != "." {
+			// 如果只有一个部分且不是根目录，说明这是workdir本身，跳过
+			log.Debug().Msgf("Skipping workdir root entry: %s", header.Name)
+			continue
+		}
+
+		// 构建目标路径
 		target := filepath.Join(destDir, cleanName)
 		target = filepath.Clean(target)
 
@@ -1090,7 +1102,9 @@ func (s *Service) removeBackup(backupDir string) error {
 
 // cleanupOldBackups 清理过期的备份文件
 func (s *Service) cleanupOldBackups(maxAge time.Duration) error {
-	backupRoot := filepath.Join(s.ctx.WorkDir, ".backup")
+	// 备份目录现在在work_dir的上一层
+	workDirParent := filepath.Dir(s.ctx.WorkDir)
+	backupRoot := filepath.Join(workDirParent, "backup")
 
 	// 检查备份根目录是否存在
 	if _, err := os.Stat(backupRoot); os.IsNotExist(err) {
