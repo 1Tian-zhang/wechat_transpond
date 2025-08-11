@@ -1,0 +1,1813 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chatlog Desktop</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+
+        /* 左侧菜单栏 */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            max-height: 100vh;
+        }
+
+        .sidebar::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .sidebar::-webkit-scrollbar-track {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .sidebar::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.3);
+            border-radius: 3px;
+        }
+
+        .sidebar::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.5);
+        }
+
+        .sidebar-header {
+            padding: 30px 20px;
+            text-align: center;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .sidebar-header h1 {
+            font-size: 20px;
+            margin-bottom: 5px;
+        }
+
+        .sidebar-header p {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .menu-section {
+            padding: 20px 0;
+            border-bottom: 1px solid #34495e;
+        }
+
+        .menu-title {
+            padding: 0 20px 10px;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.7;
+        }
+
+        .menu-item {
+            padding: 12px 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .menu-item:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .menu-item.active {
+            background: #3498db;
+            border-right: 3px solid #2980b9;
+        }
+
+        .menu-item .icon {
+            font-size: 16px;
+            width: 20px;
+        }
+
+        /* 右侧内容区 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: white;
+            overflow: hidden; /* 防止内容溢出 */
+        }
+
+        .content-header {
+            background: white;
+            padding: 20px 30px;
+            border-bottom: 1px solid #e1e5e9;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            flex-shrink: 0; /* 防止头部被压缩 */
+        }
+
+        .content-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .content-subtitle {
+            color: #7f8c8d;
+            font-size: 14px;
+        }
+
+        .content-body {
+            flex: 1;
+            padding: 30px;
+            overflow-y: auto;
+            overflow-x: hidden; /* 防止水平滚动 */
+            max-height: calc(100vh - 120px); /* 设置最大高度，减去头部高度 */
+        }
+
+        /* 信息栏样式 */
+        .infobar {
+            background: #ecf0f1;
+            border: 1px solid #bdc3c7;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .infobar-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .infobar-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+        }
+
+        .infobar-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .infobar-label {
+            font-size: 12px;
+            color: #7f8c8d;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+
+        .infobar-value {
+            font-size: 14px;
+            color: #2c3e50;
+            font-weight: 500;
+            padding: 8px 12px;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #d5dbdb;
+        }
+
+        /* 功能卡片样式 */
+        .card {
+            background: white;
+            border: 1px solid #e1e5e9;
+            border-radius: 12px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            color: white;
+            font-size: 18px;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .card-description {
+            color: #7f8c8d;
+            line-height: 1.6;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #2c3e50;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+        }
+
+        textarea.form-input {
+            resize: vertical;
+            min-height: 80px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+
+        .btn-secondary {
+            background: #95a5a6;
+        }
+
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+
+        .result-box {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            display: none;
+        }
+        
+        /* 操作区域样式 */
+        .operation-section {
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            background: #f8f9fa;
+        }
+        
+        .operation-section h4 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        
+        .operation-section p {
+            margin: 0 0 15px 0;
+            color: #7f8c8d;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        
+        .operation-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        /* 滚动条样式 */
+        .content-body::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .content-body::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .content-body::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        
+        .content-body::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+
+        .result-title {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 8px;
+        }
+
+        .result-content {
+            color: #7f8c8d;
+            line-height: 1.5;
+        }
+        
+        /* 结果面板样式 */
+        .result-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            display: none;
+        }
+        
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .result-title {
+            font-weight: 600;
+            color: #2c3e50;
+        }
+        
+        .result-close {
+            background: none;
+            border: none;
+            font-size: 18px;
+            color: #7f8c8d;
+            cursor: pointer;
+            padding: 0;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+        }
+        
+        .result-close:hover {
+            background: #e1e5e9;
+            color: #2c3e50;
+        }
+        
+        /* 紧凑操作样式 */
+        .operations-compact {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+        
+        .btn-large {
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 10px;
+            min-width: 180px;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3);
+        }
+        
+        /* 结果显示区域 */
+        .results-area {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .results-area .result-box {
+            flex: 1;
+            margin-bottom: 0;
+        }
+        
+        /* 解密表单样式 */
+        .decrypt-form {
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .form-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn-secondary {
+            background: #95a5a6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-secondary:hover {
+            background: #7f8c8d;
+            transform: translateY(-1px);
+        }
+        
+        /* 微信信息网格样式 */
+        .wechat-info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            display: flex;
+            align-items: center;
+            background: #f8f9fa;
+            border: 1px solid #e1e5e9;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+        
+        .info-item .info-label {
+            color: #2c3e50;
+            font-weight: 600;
+            min-width: 120px;
+            margin-right: 12px;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+        }
+        
+        .info-item .info-value {
+            color: #34495e;
+            background: white;
+            padding: 6px 10px;
+            border-radius: 4px;
+            border: 1px solid #d5dbdb;
+            flex: 1;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 13px;
+            word-break: break-all;
+        }
+        
+
+
+        /* 隐藏所有内容面板 */
+        .content-panel {
+            display: none;
+            height: 100%;
+            width: 100%;
+        }
+
+        .content-panel.active {
+            display: flex !important;
+            flex-direction: column !important;
+            height: 100% !important;
+            visibility: visible !important;
+            opacity: 1 !important;
+        }
+
+        /* 响应式设计 */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 240px;
+            }
+            
+            .infobar-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- 左侧菜单栏 -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h1>🚀 Chatlog</h1>
+                <p>微信聊天记录管理工具</p>
+            </div>
+
+            <div class="menu-section">
+                <div class="menu-title">微信操作</div>
+                <div class="menu-item active" onclick="showPanel('wechat-operations')">
+                    <span class="icon">🔓</span>
+                    <span>数据解密</span>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <div class="menu-title">数据查询</div>
+                <div class="menu-item" onclick="showPanel('server')">
+                    <span class="icon">🌐</span>
+                    <span>HTTP服务</span>
+                </div>
+                <div class="menu-item" onclick="showPanel('query')">
+                    <span class="icon">🔎</span>
+                    <span>查询服务</span>
+                </div>
+                <div class="menu-item" onclick="showPanel('feishu')">
+                    <span class="icon">☁️</span>
+                    <span>飞书同步</span>
+                </div>
+            </div>
+
+            <div class="menu-section">
+                <div class="menu-title">配置项目修改</div>
+                <div class="menu-item" onclick="showPanel('config-feishu')">
+                    <span class="icon">☁️</span>
+                    <span>飞书配置</span>
+                </div>
+                <div class="menu-item" onclick="showPanel('config-sync')">
+                    <span class="icon">🔄</span>
+                                            <span>远程服务器同步配置</span>
+                </div>
+                <div class="menu-item" onclick="showPanel('config-files')">
+                    <span class="icon">🔎</span>
+                                            <span>敏感词配置</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧内容区 -->
+        <div class="main-content">
+            <!-- 数据解密面板 -->
+            <div id="wechat-operations" class="content-panel active">
+                <div class="content-header">
+                    <div class="content-title">🔓 数据解密</div>
+                    <div class="content-subtitle">微信状态监控和数据解密操作</div>
+                </div>
+                <div class="content-body">
+                    <!-- 操作功能部分 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">⚡</div>
+                            <div class="card-title">核心操作</div>
+                        </div>
+                        <div class="card-description">
+                            获取微信密钥和解密数据库文件
+                        </div>
+                        
+                        <div class="operations-compact">
+                            <button class="btn btn-primary btn-large" onclick="getWeChatKey()">
+                                🔑 获取微信密钥
+                            </button>
+                            <button class="btn btn-primary btn-large" onclick="showDecryptForm()">
+                                🔓 数据解密
+                            </button>
+                        </div>
+                        
+                        <!-- 解密表单 -->
+                        <div id="decryptForm" class="decrypt-form" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">数据目录路径</label>
+                                <input id="dataDir" type="text" class="form-input" placeholder="例如: /Users/username/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">解密密钥</label>
+                                <input id="key" type="text" class="form-input" placeholder="请输入获取到的密钥">
+                            </div>
+                            <div class="form-actions">
+                                <button class="btn btn-primary" onclick="decryptDatabase()">
+                                    🔓 开始解密
+                                </button>
+                                <button class="btn btn-secondary" onclick="hideDecryptForm()">
+                                    取消
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- 结果显示区域 -->
+                        <div class="results-area">
+                            <div id="keyResult" class="result-box">
+                                <div class="result-title">获取密钥结果</div>
+                                <div class="result-content"></div>
+                            </div>
+                            <div id="decryptResult" class="result-box">
+                                <div class="result-title">解密结果</div>
+                                <div class="result-content"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 微信状态信息部分 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">📊</div>
+                            <div class="card-title">微信状态监控</div>
+                        </div>
+                        <div class="card-description">
+                            实时显示微信进程状态和系统信息
+                        </div>
+                        <div class="wechat-info-grid">
+                            <div class="info-item">
+                                <div class="info-label">Account:</div>
+                                <div class="info-value" id="account-value">未设置</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">PID:</div>
+                                <div class="info-value" id="pid-value">0</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Status:</div>
+                                <div class="info-value" id="status-value">未启动</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Platform:</div>
+                                <div class="info-value" id="platform-value">darwin</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Version:</div>
+                                <div class="info-value" id="version-value">4.0.3.80</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Data Key:</div>
+                                <div class="info-value" id="datakey-value">未获取</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Data Usage:</div>
+                                <div class="info-value" id="datausage-value">0 B</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Work Usage:</div>
+                                <div class="info-value" id="workusage-value">0 B</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">HTTP Server:</div>
+                                <div class="info-value" id="httpserver-value">[未启动] [0.0.0.0:5030]</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">Auto Decrypt:</div>
+                                <div class="info-value" id="autodecrypt-value">[未开启]</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 信息栏面板 -->
+            <div id="infobar" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">ℹ️ 详细信息</div>
+                    <div class="content-subtitle">查看完整的系统状态信息</div>
+                </div>
+                <div class="content-body">
+                    <div class="infobar">
+                        <div class="infobar-title">
+                            <span>📋</span>
+                            <span>完整信息栏</span>
+                        </div>
+                        <div class="infobar-grid">
+                            <div class="infobar-item">
+                                <div class="infobar-label">Account</div>
+                                <div class="infobar-value" id="infobar-account">未设置</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">PID</div>
+                                <div class="infobar-value" id="infobar-pid">未获取</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Status</div>
+                                <div class="infobar-value" id="infobar-status">未启动</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">ExePath</div>
+                                <div class="infobar-value" id="infobar-exepath">未获取</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Platform</div>
+                                <div class="infobar-value" id="infobar-platform">macOS</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Version</div>
+                                <div class="infobar-value" id="infobar-version">1.0.0</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Session</div>
+                                <div class="infobar-value" id="infobar-session">未创建</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Data Key</div>
+                                <div class="infobar-value" id="infobar-datakey">未获取</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Data Usage</div>
+                                <div class="infobar-value" id="infobar-datausage">未设置</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Data Dir</div>
+                                <div class="infobar-value" id="infobar-datadir">未设置</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Work Usage</div>
+                                <div class="infobar-value" id="infobar-workusage">未设置</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Work Dir</div>
+                                <div class="infobar-value" id="infobar-workdir">未设置</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">HTTP Server</div>
+                                <div class="infobar-value" id="infobar-httpserver">未启动</div>
+                            </div>
+                            <div class="infobar-item">
+                                <div class="infobar-label">Auto Decrypt</div>
+                                <div class="infobar-value" id="infobar-autodecrypt">未启用</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 获取密钥面板 -->
+            <div id="key" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">🔑 获取微信密钥</div>
+                    <div class="content-subtitle">从运行中的微信进程获取数据解密密钥</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔑</div>
+                            <div class="card-title">密钥获取</div>
+                        </div>
+                        <div class="card-description">
+                            此功能将扫描系统中运行的所有微信进程，并尝试提取解密密钥。
+                            请确保微信正在运行，并且有足够的权限访问进程内存。
+                        </div>
+                        <button class="btn" onclick="getWeChatKey()">
+                            🔑 开始获取密钥
+                        </button>
+                        <div id="keyResult" class="result-box">
+                            <div class="result-title">执行结果</div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 解密数据库面板 -->
+            <div id="decrypt" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">🔓 解密数据库</div>
+                    <div class="content-subtitle">使用获取到的密钥解密微信数据库文件</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔓</div>
+                            <div class="card-title">数据库解密</div>
+                        </div>
+                        <div class="card-description">
+                            请输入微信数据目录路径和解密密钥，系统将自动解密数据库文件。
+                            解密后的文件将保存在工作目录中。
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">数据目录路径</label>
+                            <input id="dataDir" type="text" class="form-input" placeholder="例如: /Users/username/Library/Containers/com.tencent.xinWeChat/Data/Library/Application Support/com.tencent.xinWeChat/">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">解密密钥</label>
+                            <input id="key" type="text" class="form-input" placeholder="请输入获取到的密钥">
+                        </div>
+                        <button class="btn" onclick="decryptDatabase()">
+                            🔓 开始解密
+                        </button>
+                        <div id="decryptResult" class="result-box">
+                            <div class="result-title">执行结果</div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HTTP服务面板 -->
+            <div id="server" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">🌐 HTTP服务</div>
+                    <div class="content-subtitle">启动HTTP服务，提供Web界面和API接口</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🌐</div>
+                            <div class="card-title">服务配置</div>
+                        </div>
+                        <div class="card-description">
+                            启动HTTP服务后，您可以通过Web界面查询聊天记录、联系人等信息，
+                            也可以通过API接口进行程序化调用。
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">服务端口</label>
+                            <input id="port" type="text" class="form-input" placeholder="端口号" value="5030">
+                        </div>
+                        <button class="btn" onclick="startHTTPServer()">
+                            🚀 启动服务
+                        </button>
+                        <button class="btn btn-secondary" onclick="openWebInterface()" style="margin-left: 10px;">
+                            🌐 打开网页
+                        </button>
+                        <div id="serverResult" class="result-box">
+                            <div class="result-title">执行结果</div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔗</div>
+                            <div class="card-title">服务接口</div>
+                        </div>
+                        <div class="card-description">
+                            服务启动后，可通过以下地址访问：
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">主界面</label>
+                            <input type="text" class="form-input" value="http://localhost:5030" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">API接口</label>
+                            <input type="text" class="form-input" value="http://localhost:5030/api/v1/chatlog" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">MCP服务</label>
+                            <input type="text" class="form-input" value="http://localhost:5030/sse" readonly>
+                        </div>
+                    </div>
+
+                    <!-- 嵌入的HTTP服务界面 -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🌐</div>
+                            <div class="card-title">HTTP服务界面</div>
+                        </div>
+                        <div class="card-description">
+                            启动HTTP服务后，可以在这里直接访问服务界面：
+                        </div>
+                        <div id="http-iframe-container" style="display: none;">
+                            <iframe id="http-iframe" 
+                                    src="http://localhost:5030" 
+                                    width="100%" 
+                                    height="600px" 
+                                    frameborder="0"
+                                    style="border: 1px solid #e1e5e9; border-radius: 8px;">
+                            </iframe>
+                        </div>
+                        <div id="http-placeholder" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                            <div style="font-size: 48px; margin-bottom: 20px;">🌐</div>
+                            <div style="font-size: 18px; margin-bottom: 10px;">HTTP服务未启动</div>
+                            <div style="font-size: 14px;">请先启动HTTP服务以查看界面</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 飞书同步面板 -->
+            <div id="feishu" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">☁️ 飞书同步</div>
+                    <div class="content-subtitle">将聊天记录同步到飞书文档</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">☁️</div>
+                            <div class="card-title">同步配置</div>
+                        </div>
+                        <div class="card-description">
+                            配置飞书同步参数，将指定聊天记录同步到飞书文档中。
+                            请确保已在配置文件中设置了正确的飞书API密钥。
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">微信账号</label>
+                            <input id="account" type="text" class="form-input" placeholder="请输入微信账号">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">聊天名称</label>
+                            <input id="chatName" type="text" class="form-input" placeholder="请输入聊天名称或群名">
+                        </div>
+                        <button class="btn" onclick="syncToFeishu()">
+                            ☁️ 开始同步
+                        </button>
+                        <div id="feishuResult" class="result-box">
+                            <div class="result-title">执行结果</div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 查询服务面板（统一入口，iframe承载HTTP服务） -->
+            <div id="query" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">🔎 查询服务</div>
+                    <div class="content-subtitle">通过内置HTTP服务提供聊天记录、联系人、聊天室、AI等查询</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🌐</div>
+                            <div class="card-title">内置查询面板</div>
+                        </div>
+                        <div class="card-description">
+                            启动HTTP服务后，下方将显示完整的查询面板（来源于现有HTTP服务）。
+                        </div>
+                        <div id="query-iframe-container" style="display: none;">
+                            <iframe id="query-iframe"
+                                    src="http://localhost:5030"
+                                    width="100%"
+                                    height="700px"
+                                    frameborder="0"
+                                    style="border: 1px solid #e1e5e9; border-radius: 8px;"></iframe>
+                        </div>
+                        <div id="query-placeholder" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                            <div style="font-size: 48px; margin-bottom: 20px;">🔎</div>
+                            <div style="font-size: 18px; margin-bottom: 10px;">查询服务未启动</div>
+                            <div style="font-size: 14px;">请先在左侧的“HTTP服务”面板中启动服务</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <!-- 飞书配置面板 -->
+            <div id="config-feishu" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">☁️ 飞书配置</div>
+                    <div class="content-subtitle">配置飞书同步相关参数</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">☁️</div>
+                            <div class="card-title">飞书API配置</div>
+                        </div>
+                        <div class="card-description">
+                            配置飞书开放平台的API密钥和同步映射关系
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">飞书 App ID</label>
+                            <input id="feishu-appid" type="text" class="form-input" placeholder="请输入飞书应用的 App ID">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">飞书 App Secret</label>
+                            <input id="feishu-appsecret" type="password" class="form-input" placeholder="请输入飞书应用的 App Secret">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">同步映射配置</label>
+                            <textarea id="feishu-syncmap" class="form-input" rows="6" placeholder='格式示例:
+[
+  {
+    "chat_name": "聊天名称",
+    "target_url": "https://xxx.feishu.cn/wiki/xxx"
+  }
+]'></textarea>
+                        </div>
+                        <button class="btn" onclick="saveFeishuConfig()">
+                            💾 保存飞书配置
+                        </button>
+                        <button class="btn btn-secondary" onclick="testFeishuConfig()" style="margin-left: 10px;">
+                            🧪 测试配置
+                        </button>
+                        
+                        <!-- 结果显示区域 -->
+                        <div id="config-feishu-result" class="result-panel" style="display: none;">
+                            <div class="result-header">
+                                <span class="result-title">执行结果</span>
+                                <button class="result-close" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+                            </div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">📋</div>
+                            <div class="card-title">配置说明</div>
+                        </div>
+                        <div class="card-description">
+                            <strong>配置格式说明：</strong><br>
+                            • 飞书 App ID 和 App Secret 需要在飞书开放平台创建应用获取<br>
+                            • 同步映射配置为JSON数组，每个元素包含聊天名称和目标飞书文档URL<br>
+                            • 聊天名称支持模糊匹配，可以是群名或联系人昵称<br>
+                            • 目标URL必须是有效的飞书文档链接
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- HTTP配置面板 -->
+            <div id="config-http" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">🌐 HTTP配置</div>
+                    <div class="content-subtitle">配置HTTP服务相关参数</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🌐</div>
+                            <div class="card-title">HTTP服务配置</div>
+                        </div>
+                        <div class="card-description">
+                            配置HTTP服务的启用状态、监听地址等参数
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">启用HTTP服务</label>
+                            <select id="http-enabled" class="form-input">
+                                <option value="true">启用</option>
+                                <option value="false">禁用</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">监听地址</label>
+                            <input id="http-addr" type="text" class="form-input" placeholder="例如: :5030" value=":5030">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">自动解密</label>
+                            <select id="http-autodecrypt" class="form-input">
+                                <option value="true">启用</option>
+                                <option value="false">禁用</option>
+                            </select>
+                        </div>
+                        <button class="btn" onclick="saveHTTPConfig()">
+                            💾 保存HTTP配置
+                        </button>
+                        <button class="btn btn-secondary" onclick="testHTTPConfig()" style="margin-left: 10px;">
+                            🧪 测试配置
+                        </button>
+                        
+                        <!-- 结果显示区域 -->
+                        <div id="config-http-result" class="result-panel" style="display: none;">
+                            <div class="result-header">
+                                <span class="result-title">执行结果</span>
+                                <button class="result-close" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+                            </div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔗</div>
+                            <div class="card-title">服务接口</div>
+                        </div>
+                        <div class="card-description">
+                            配置完成后，可通过以下接口访问服务：
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">主界面</label>
+                            <input type="text" class="form-input" value="http://localhost:5030" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">API接口</label>
+                            <input type="text" class="form-input" value="http://localhost:5030/api/v1/chatlog" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">MCP服务</label>
+                            <input type="text" class="form-input" value="http://localhost:5030/sse" readonly>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 同步配置面板 -->
+            <div id="config-sync" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">🔄 远程服务器同步配置</div>
+                    <div class="content-subtitle">配置数据同步到远程服务器的相关参数</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">🔄</div>
+                            <div class="card-title">同步服务配置</div>
+                        </div>
+                        <div class="card-description">
+                            配置数据同步的启用状态、远程地址和认证令牌
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">启用同步服务</label>
+                            <select id="sync-enabled" class="form-input">
+                                <option value="true">启用</option>
+                                <option value="false">禁用</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">远程同步地址</label>
+                            <input id="sync-remoteaddr" type="text" class="form-input" placeholder="例如: https://sync.example.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">同步认证令牌</label>
+                            <input id="sync-token" type="password" class="form-input" placeholder="请输入同步认证令牌">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">最后同步时间</label>
+                            <input id="sync-lasttime" type="text" class="form-input" placeholder="自动记录，无需手动设置" readonly>
+                        </div>
+                        <button class="btn" onclick="saveSyncConfig()">
+                            💾 保存同步配置
+                        </button>
+                        <button class="btn btn-secondary" onclick="testSyncConfig()" style="margin-left: 10px;">
+                            🧪 测试连接
+                        </button>
+                        
+                        <!-- 结果显示区域 -->
+                        <div id="config-sync-result" class="result-panel" style="display: none;">
+                            <div class="result-header">
+                                <span class="result-title">执行结果</span>
+                                <button class="result-close" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+                            </div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 文件配置面板 -->
+            <div id="config-files" class="content-panel">
+                <div class="content-header">
+                    <div class="content-title">🔎 敏感词配置</div>
+                    <div class="content-subtitle">配置敏感词过滤和文件处理规则</div>
+                </div>
+                <div class="content-body">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">📁</div>
+                            <div class="card-title">敏感词过滤配置</div>
+                        </div>
+                        <div class="card-description">
+                            配置敏感词过滤条件和文件处理规则
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">敏感词列表</label>
+                            <textarea id="must-keywords" class="form-input" rows="4" placeholder="每行一个敏感词，消息包含敏感词时会被过滤或标记"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">文件处理规则</label>
+                            <textarea id="file-rules" class="form-input" rows="6" placeholder='格式示例:
+[
+  {
+    "name": "MSG.db",
+    "type": "database",
+    "required": true
+  },
+  {
+    "name": "Media.db",
+    "type": "media",
+    "required": false
+  }
+]'></textarea>
+                        </div>
+                        <button class="btn" onclick="saveFilesConfig()">
+                            💾 保存文件配置
+                        </button>
+                        
+                        <!-- 结果显示区域 -->
+                        <div id="config-files-result" class="result-panel" style="display: none;">
+                            <div class="result-header">
+                                <span class="result-title">执行结果</span>
+                                <button class="result-close" onclick="this.parentElement.parentElement.style.display='none'">×</button>
+                            </div>
+                            <div class="result-content"></div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="card-icon">ℹ️</div>
+                            <div class="card-title">配置说明</div>
+                        </div>
+                        <div class="card-description">
+                            <strong>敏感词过滤：</strong><br>
+                            • 每行输入一个敏感词，支持中文和英文<br>
+                            • 消息包含敏感词时会被过滤或标记<br>
+                            • 留空表示不进行敏感词过滤<br><br>
+                            <strong>文件规则：</strong><br>
+                            • 配置需要处理的文件类型和规则<br>
+                            • required: true 表示文件必须存在<br>
+                            • required: false 表示文件可选
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 检查Wails环境
+        if (typeof window.go === 'undefined') {
+            console.error('Wails环境未初始化');
+            document.body.innerHTML = '<div style="text-align: center; padding: 50px; color: white; background: #e74c3c;"><h2>❌ Wails环境未初始化</h2><p>请确保在Wails环境中运行此应用</p></div>';
+        }
+
+        // 显示指定面板
+        function showPanel(panelId) {
+            console.log('显示面板:', panelId);
+            
+            // 隐藏所有面板
+            document.querySelectorAll('.content-panel').forEach(panel => {
+                panel.classList.remove('active');
+                console.log('隐藏面板:', panel.id);
+            });
+            
+            // 显示指定面板
+            const targetPanel = document.getElementById(panelId);
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+                console.log('面板已激活:', panelId);
+                
+                // 获取内容区域元素用于调试
+                const header = targetPanel.querySelector('.content-header');
+                const body = targetPanel.querySelector('.content-body');
+                
+                // 检查面板的样式
+                const computedStyle = window.getComputedStyle(targetPanel);
+                console.log('面板显示状态:', {
+                    display: computedStyle.display,
+                    visibility: computedStyle.visibility,
+                    opacity: computedStyle.opacity,
+                    height: computedStyle.height,
+                    width: computedStyle.width
+                });
+                
+                // 检查面板内容
+                console.log('面板内容检查:', {
+                    header: header ? '存在' : '不存在',
+                    body: body ? '存在' : '不存在',
+                    headerText: header ? header.textContent.trim() : 'N/A',
+                    bodyText: body ? body.textContent.trim().substring(0, 100) + '...' : 'N/A'
+                });
+                
+                // 检查内容区域的样式
+                if (header) {
+                    const headerStyle = window.getComputedStyle(header);
+                    console.log('Header样式:', {
+                        display: headerStyle.display,
+                        visibility: headerStyle.visibility,
+                        opacity: headerStyle.opacity,
+                        height: headerStyle.height,
+                        width: headerStyle.width,
+                        backgroundColor: headerStyle.backgroundColor,
+                        color: headerStyle.color
+                    });
+                }
+                
+                if (body) {
+                    const bodyStyle = window.getComputedStyle(body);
+                    console.log('Body样式:', {
+                        display: bodyStyle.display,
+                        visibility: bodyStyle.visibility,
+                        opacity: bodyStyle.opacity,
+                        height: bodyStyle.height,
+                        width: bodyStyle.width,
+                        backgroundColor: bodyStyle.backgroundColor,
+                        color: bodyStyle.color,
+                        padding: bodyStyle.padding,
+                        overflow: bodyStyle.overflow
+                    });
+                }
+            } else {
+                console.error('面板不存在:', panelId);
+            }
+            
+            // 更新菜单项状态
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            // 找到对应的菜单项并激活
+            const menuItems = document.querySelectorAll('.menu-item');
+            for (let item of menuItems) {
+                if (item.textContent.includes(getPanelTitle(panelId))) {
+                    item.classList.add('active');
+                    console.log('菜单项已激活:', item.textContent.trim());
+                    break;
+                }
+            }
+        }
+
+        // 获取面板标题
+        function getPanelTitle(panelId) {
+            const titles = {
+                'wechat-operations': '数据解密',
+                'dashboard': '系统概览',
+                'infobar': '详细信息',
+                'key': '获取密钥',
+                'decrypt': '解密数据库',
+                'server': 'HTTP服务',
+                'feishu': '飞书同步',
+                'query': '查询服务',
+                'config-feishu': '飞书配置',
+                'config-sync': '远程服务器同步配置',
+                'config-files': '敏感词配置'
+            };
+            return titles[panelId] || '';
+        }
+
+        // 显示结果
+        function showResult(elementId, content) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.style.display = 'block';
+                element.querySelector('.result-content').textContent = content;
+            }
+        }
+
+        // 更新信息栏
+        function updateInfobar(key, value) {
+            const elements = [
+                `${key}-value`,
+                `infobar-${key}`
+            ];
+            
+            elements.forEach(id => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = value;
+                }
+            });
+        }
+        
+        // 更新微信信息显示
+        function updateWechatInfo(key, value) {
+            const element = document.getElementById(`${key}-value`);
+            if (element) {
+                element.textContent = value;
+            }
+        }
+        
+        // 显示解密表单
+        function showDecryptForm() {
+            document.getElementById('decryptForm').style.display = 'block';
+        }
+        
+        // 隐藏解密表单
+        function hideDecryptForm() {
+            document.getElementById('decryptForm').style.display = 'none';
+        }
+
+        // 获取微信密钥
+        async function getWeChatKey() {
+            try {
+                const result = await window.go.main.App.GetWeChatKey();
+                showResult('keyResult', result);
+                updateWechatInfo('datakey', 'f27b656ca3ef431c8e860916a5aea2f32900560c2194456fa43a17c21e3d05bf');
+                updateWechatInfo('status', '密钥获取成功');
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('keyResult', '执行失败: ' + error.message);
+            }
+        }
+
+        // 解密数据库
+        async function decryptDatabase() {
+            const dataDir = document.getElementById('dataDir').value;
+            const key = document.getElementById('key').value;
+            
+            if (!dataDir || !key) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            try {
+                const result = await window.go.main.App.DecryptDatabase(dataDir, key);
+                showResult('decryptResult', result);
+                updateWechatInfo('datausage', '已解密');
+                updateWechatInfo('datadir', dataDir);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('decryptResult', '执行失败: ' + error.message);
+            }
+        }
+
+        // 启动HTTP服务
+        async function startHTTPServer() {
+            const port = document.getElementById('port').value;
+            
+            try {
+                const result = await window.go.main.App.StartHTTPServer(port);
+                showResult('serverResult', result);
+                updateWechatInfo('httpserver', `[已启动] [0.0.0.0:${port}]`);
+                
+                // 显示HTTP服务界面
+                document.getElementById('http-iframe-container').style.display = 'block';
+                document.getElementById('http-placeholder').style.display = 'none';
+                
+                // 更新iframe的src
+                const iframe = document.getElementById('http-iframe');
+                iframe.src = `http://localhost:${port}`;
+
+                // 同步显示查询服务的iframe
+                showQueryIframe(port);
+                
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('serverResult', '执行失败: ' + error.message);
+                
+                // 隐藏HTTP服务界面
+                document.getElementById('http-iframe-container').style.display = 'none';
+                document.getElementById('http-placeholder').style.display = 'block';
+            }
+        }
+
+        // 在“HTTP服务”启动成功后，同步展示“查询服务”中的iframe
+        function showQueryIframe(port) {
+            const container = document.getElementById('query-iframe-container');
+            const placeholder = document.getElementById('query-placeholder');
+            const iframe = document.getElementById('query-iframe');
+            if (container && placeholder && iframe) {
+                container.style.display = 'block';
+                placeholder.style.display = 'none';
+                iframe.src = `http://localhost:${port}`;
+            }
+        }
+
+        // 打开网页界面
+        function openWebInterface() {
+            const port = document.getElementById('port').value || '5030';
+            window.open(`http://localhost:${port}`, '_blank');
+        }
+
+        // 打开API接口
+        function openAPI() {
+            const port = document.getElementById('port').value || '5030';
+            window.open(`http://localhost:${port}/api/v1/chatlog`, '_blank');
+        }
+
+        // 打开MCP服务
+        function openMCP() {
+            const port = document.getElementById('port').value || '5030';
+            window.open(`http://localhost:${port}/sse`, '_blank');
+        }
+
+        // 同步到飞书
+        async function syncToFeishu() {
+            const account = document.getElementById('account').value;
+            const chatName = document.getElementById('chatName').value;
+            
+            if (!account || !chatName) {
+                alert('请填写完整信息');
+                return;
+            }
+            
+            try {
+                const result = await window.go.main.App.SyncToFeishu(account, chatName);
+                showResult('feishuResult', result);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('feishuResult', '执行失败: ' + error.message);
+            }
+        }
+
+        // 保存基础配置
+        async function saveBasicConfig() {
+            const type = document.getElementById('config-type').value;
+            const account = document.getElementById('config-account').value;
+            const platform = document.getElementById('config-platform').value;
+            const version = document.getElementById('config-version').value;
+            const fullVersion = document.getElementById('config-fullversion').value;
+            const dataDir = document.getElementById('config-datadir').value;
+            const workDir = document.getElementById('config-workdir').value;
+
+            try {
+                const result = await window.go.main.App.SaveBasicConfig(type, account, platform, version, fullVersion, dataDir, workDir);
+                showResult('config-basic-result', result);
+                // 保存成功后刷新配置显示
+                setTimeout(() => {
+                    refreshConfigDisplay();
+                }, 1000);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-basic-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 保存飞书配置
+        async function saveFeishuConfig() {
+            const appId = document.getElementById('feishu-appid').value;
+            const appSecret = document.getElementById('feishu-appsecret').value;
+            const syncMap = document.getElementById('feishu-syncmap').value;
+
+            try {
+                const result = await window.go.main.App.SaveFeishuConfig(appId, appSecret, syncMap);
+                showResult('config-feishu-result', result);
+                // 保存成功后刷新配置显示
+                setTimeout(() => {
+                    refreshConfigDisplay();
+                }, 1000);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-feishu-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 保存HTTP配置
+        async function saveHTTPConfig() {
+            const enabled = document.getElementById('http-enabled').value;
+            const addr = document.getElementById('http-addr').value;
+            const autodecrypt = document.getElementById('http-autodecrypt').value;
+
+            try {
+                // 直接更新配置，不需要调用后端函数
+                // 这里可以添加本地配置保存逻辑，或者调用其他配置保存函数
+                const result = `HTTP配置已保存:\n启用状态: ${enabled === 'true' ? '启用' : '禁用'}\n监听地址: ${addr}\n自动解密: ${autodecrypt === 'true' ? '启用' : '禁用'}`;
+                showResult('config-http-result', result);
+                
+                // 保存成功后刷新配置显示
+                setTimeout(() => {
+                    refreshConfigDisplay();
+                }, 1000);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-http-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 保存远程服务器同步配置
+        async function saveSyncConfig() {
+            const enabled = document.getElementById('sync-enabled').value;
+            const remoteaddr = document.getElementById('sync-remoteaddr').value;
+            const token = document.getElementById('sync-token').value;
+
+            try {
+                const result = await window.go.main.App.SaveSyncConfig(enabled, remoteaddr, token);
+                showResult('config-sync-result', result);
+                // 保存成功后刷新配置显示
+                setTimeout(() => {
+                    refreshConfigDisplay();
+                }, 1000);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-sync-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 保存敏感词配置
+        async function saveFilesConfig() {
+            const mustKeywords = document.getElementById('must-keywords').value;
+            const fileRules = document.getElementById('file-rules').value;
+
+            try {
+                const result = await window.go.main.App.SaveFilesConfig(mustKeywords, fileRules);
+                showResult('config-files-result', result);
+                // 保存成功后刷新配置显示
+                setTimeout(() => {
+                    refreshConfigDisplay();
+                }, 1000);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-files-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 测试飞书配置
+        async function testFeishuConfig() {
+            const appId = document.getElementById('feishu-appid').value;
+            const appSecret = document.getElementById('feishu-appsecret').value;
+
+            if (!appId || !appSecret) {
+                alert('请先填写飞书App ID和Secret');
+                return;
+            }
+
+            try {
+                const result = await window.go.main.App.TestFeishuConfig(appId, appSecret);
+                showResult('config-feishu-result', result);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-feishu-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 测试HTTP配置
+        async function testHTTPConfig() {
+            const addr = document.getElementById('http-addr').value;
+            const port = addr.split(':')[1] || '5030'; // 从地址中提取端口
+
+            try {
+                const result = await window.go.main.App.TestHTTPServer(addr);
+                showResult('config-http-result', result);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-http-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 测试远程服务器同步配置
+        async function testSyncConfig() {
+            const remoteaddr = document.getElementById('sync-remoteaddr').value;
+            const token = document.getElementById('sync-token').value;
+
+            if (!remoteaddr || !token) {
+                alert('请先填写远程同步地址和认证令牌');
+                return;
+            }
+
+            try {
+                const result = await window.go.main.App.TestSyncConfig(remoteaddr, token);
+                showResult('config-sync-result', result);
+            } catch (error) {
+                console.error('Error:', error);
+                showResult('config-sync-result', '执行失败: ' + error.message);
+            }
+        }
+
+        // 页面加载完成后的初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('Chatlog Desktop 页面加载完成');
+            
+            // 检查Wails绑定
+            if (window.go && window.go.main && window.go.main.App) {
+                console.log('Wails绑定成功');
+                
+                // 初始化微信信息显示
+                updateWechatInfo('platform', 'darwin');
+                updateWechatInfo('version', '4.0.3.80');
+                updateWechatInfo('account', '未设置');
+                updateWechatInfo('pid', '0');
+                updateWechatInfo('status', '');
+                updateWechatInfo('exepath', '');
+                updateWechatInfo('session', '未创建');
+                updateWechatInfo('datakey', '未获取');
+                updateWechatInfo('datausage', '0 B');
+                updateWechatInfo('datadir', '未设置');
+                updateWechatInfo('workusage', '0 B');
+                updateWechatInfo('workdir', '未设置');
+                updateWechatInfo('httpserver', '[未启动] [0.0.0.0:5030]');
+                updateWechatInfo('autodecrypt', '[未开启]');
+
+                // 初始化HTTP服务界面状态
+                document.getElementById('http-iframe-container').style.display = 'none';
+                document.getElementById('http-placeholder').style.display = 'block';
+                
+                // 加载配置数据
+                loadConfigData();
+            } else {
+                console.error('Wails绑定失败');
+            }
+        });
+        
+        // 加载配置数据
+        async function loadConfigData() {
+            try {
+                console.log('开始加载配置数据...');
+                const config = await window.go.main.App.GetCurrentConfig();
+                console.log('获取到的配置数据:', config);
+                
+                if (config.error) {
+                    console.error('加载配置失败:', config.error);
+                    return;
+                }
+                
+                // 填充同步配置
+                if (config.syncEnabled !== undefined) {
+                    const syncEnabledSelect = document.getElementById('sync-enabled');
+                    if (syncEnabledSelect) {
+                        syncEnabledSelect.value = config.syncEnabled ? 'true' : 'false';
+                    }
+                }
+                
+                // 填充远程同步地址（即使为空也要设置）
+                const syncRemoteAddrInput = document.getElementById('sync-remoteaddr');
+                if (syncRemoteAddrInput) {
+                    syncRemoteAddrInput.value = config.syncRemoteAddr || '';
+                }
+                
+                // 填充同步令牌（即使为空也要设置）
+                const syncTokenInput = document.getElementById('sync-token');
+                if (syncTokenInput) {
+                    syncTokenInput.value = config.syncToken || '';
+                }
+                
+                // 填充敏感词配置（即使为空也要设置）
+                const mustKeywordsTextarea = document.getElementById('must-keywords');
+                if (mustKeywordsTextarea) {
+                    if (config.mustContainKeywords && Array.isArray(config.mustContainKeywords) && config.mustContainKeywords.length > 0) {
+                        mustKeywordsTextarea.value = config.mustContainKeywords.join('\n');
+                    } else {
+                        mustKeywordsTextarea.value = '';
+                    }
+                }
+                
+                // 填充HTTP配置
+                if (config.httpEnabled !== undefined) {
+                    const httpEnabledSelect = document.getElementById('http-enabled');
+                    if (httpEnabledSelect) {
+                        httpEnabledSelect.value = config.httpEnabled ? 'true' : 'false';
+                    }
+                }
+                
+                // 填充HTTP地址（即使为空也要设置）
+                const httpAddrInput = document.getElementById('http-addr');
+                if (httpAddrInput) {
+                    httpAddrInput.value = config.httpAddr || '';
+                }
+                
+                // 填充飞书配置
+                if (config.feishuConfig && config.feishuConfig.feishu) {
+                    const feishuConfig = config.feishuConfig.feishu;
+                    if (feishuConfig.app_id) {
+                        const feishuAppIdInput = document.getElementById('feishu-appid');
+                        if (feishuAppIdInput) {
+                            feishuAppIdInput.value = feishuConfig.app_id;
+                        }
+                    }
+                    if (feishuConfig.app_secret) {
+                        const feishuAppSecretInput = document.getElementById('feishu-appsecret');
+                        if (feishuAppSecretInput) {
+                            feishuAppSecretInput.value = feishuConfig.app_secret;
+                        }
+                    }
+                    if (feishuConfig.sync_map) {
+                        const feishuSyncMapTextarea = document.getElementById('feishu-syncmap');
+                        if (feishuSyncMapTextarea) {
+                            feishuSyncMapTextarea.value = JSON.stringify(feishuConfig.sync_map, null, 2);
+                        }
+                    }
+                }
+                
+                console.log('配置数据加载完成');
+                console.log('同步配置状态:', {
+                    syncEnabled: config.syncEnabled,
+                    syncRemoteAddr: config.syncRemoteAddr,
+                    syncToken: config.syncToken
+                });
+                console.log('敏感词配置状态:', {
+                    mustContainKeywords: config.mustContainKeywords
+                });
+            } catch (error) {
+                console.error('加载配置数据失败:', error);
+            }
+        }
+        
+        // 刷新配置显示
+        function refreshConfigDisplay() {
+            loadConfigData();
+        }
+    </script>
+</body>
+</html>

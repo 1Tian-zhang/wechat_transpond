@@ -30,3 +30,9 @@ go.work.sum
 chatlog.exe# Added by goreleaser init:
 dist/
 workdir/
+docs/
+.idea/
+*debug*
+.vscode/
+examples/
+build/

@@ -1,0 +1,27 @@
+{
+  "name": "chatlog-desktop",
+  "outputfilename": "chatlog-desktop",
+  "author": {
+    "name": "sjzar",
+    "email": "sjzar@example.com"
+  },
+  "info": {
+    "companyName": "Chatlog",
+    "productName": "Chatlog Desktop",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright........",
+    "comments": "Built using Wails (https://wails.io)"
+  },
+  "build": {
+    "development": {
+      "developmentBuild": true,
+      "installDirectory": ""
+    },
+    "production": {
+      "developmentBuild": false,
+      "installDirectory": "",
+      "pack": true,
+      "compression": "gzip"
+    }
+  }
+}
