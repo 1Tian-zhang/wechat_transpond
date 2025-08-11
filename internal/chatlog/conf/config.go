@@ -9,22 +9,23 @@ type Config struct {
 }
 
 type ProcessConfig struct {
-	Type                string   `mapstructure:"type" json:"type"`
-	Account             string   `mapstructure:"account" json:"account"`
-	Platform            string   `mapstructure:"platform" json:"platform"`
-	Version             int      `mapstructure:"version" json:"version"`
-	FullVersion         string   `mapstructure:"full_version" json:"full_version"`
-	DataDir             string   `mapstructure:"data_dir" json:"data_dir"`
-	DataKey             string   `mapstructure:"data_key" json:"data_key"`
-	WorkDir             string   `mapstructure:"work_dir" json:"work_dir"`
-	HTTPEnabled         bool     `mapstructure:"http_enabled" json:"http_enabled"`
-	HTTPAddr            string   `mapstructure:"http_addr" json:"http_addr"`
-	SyncEnabled         bool     `mapstructure:"sync_enabled" json:"sync_enabled"`
-	SyncRemoteAddr      string   `mapstructure:"sync_remote_addr" json:"sync_remote_addr"`
-	SyncToken           string   `mapstructure:"sync_token" json:"sync_token"`
-	LastTime            int64    `mapstructure:"last_time" json:"last_time"`
-	Files               []File   `mapstructure:"files" json:"files"`
-	MustContainKeywords []string `mapstructure:"must_contain_keywords" json:"must_contain_keywords"`
+	Type                string                 `mapstructure:"type" json:"type"`
+	Account             string                 `mapstructure:"account" json:"account"`
+	Platform            string                 `mapstructure:"platform" json:"platform"`
+	Version             int                    `mapstructure:"version" json:"version"`
+	FullVersion         string                 `mapstructure:"full_version" json:"full_version"`
+	DataDir             string                 `mapstructure:"data_dir" json:"data_dir"`
+	DataKey             string                 `mapstructure:"data_key" json:"data_key"`
+	WorkDir             string                 `mapstructure:"work_dir" json:"work_dir"`
+	HTTPEnabled         bool                   `mapstructure:"http_enabled" json:"http_enabled"`
+	HTTPAddr            string                 `mapstructure:"http_addr" json:"http_addr"`
+	SyncEnabled         bool                   `mapstructure:"sync_enabled" json:"sync_enabled"`
+	SyncRemoteAddr      string                 `mapstructure:"sync_remote_addr" json:"sync_remote_addr"`
+	SyncToken           string                 `mapstructure:"sync_token" json:"sync_token"`
+	LastTime            int64                  `mapstructure:"last_time" json:"last_time"`
+	Files               []File                 `mapstructure:"files" json:"files"`
+	MustContainKeywords []string               `mapstructure:"must_contain_keywords" json:"must_contain_keywords"`
+	Sync2Web            map[string]interface{} `mapstructure:"sync_2_web" json:"sync_2_web"`
 }
 
 type File struct {

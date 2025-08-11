@@ -67,6 +67,10 @@ func (s *Service) initRouter() {
 		api.POST("/sync/receive", s.ReceiveWorkDir)
 		api.GET("/sync/refresh", s.RefreshDatabase)
 		api.POST("/sync/cleanup", s.CleanupOldBackups)
+
+		// Feishu sync endpoints
+		api.POST("/feishu/sync", s.SyncToFeishu)
+		api.GET("/feishu/status", s.GetFeishuSyncStatus)
 	}
 
 	router.NoRoute(s.NoRoute)
